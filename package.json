@@ -1,0 +1,16 @@
+{
+  "name": "discord-admin-report-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "node-cron": "^4.2.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
