@@ -52,16 +52,10 @@ async function appendRowToSheet(rangeA1, values) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
     range: rangeA1,                     // 예: '소령!A:Z'
-    valueInputOption: 'USER_ENTERED',   // ✅ =IMAGE 가능
+    valueInputOption: 'USER_ENTERED',   // ✅ 수식 가능
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [values] }
   });
-}
-
-// ✅ 시트에 이미지로 표시 (원하면 HYPERLINK로 바꿀 수 있음)
-function toImageFormula(url) {
-  return `=IMAGE("${url}")`;
-  // return `=HYPERLINK("${url}","사진")`;
 }
 
 const client = new Client({
@@ -830,7 +824,7 @@ client.on('interactionCreate', async interaction => {
 
     let replyText =
       `✅ **${is소령 ? '소령' : '중령'} 보고 완료!**\n` +
-      `**닉네임**: ${mention}\n` + // ✅ 멘션으로 표시
+      `**닉네임**: ${mention}\n` +
       `**일자**: ${date}\n\n`;
 
     let adminCount = 0, extra = 0;
@@ -899,39 +893,43 @@ client.on('interactionCreate', async interaction => {
     dayTotalsCache.delete(`${is소령 ? '소령' : '중령'}|${date}`);
     saveData();
 
-// ================== ✅ 구글 시트 저장 (증거사진은 저장하지 않음) ==================
-try {
-  if (is소령) {
-    // 소령: 일자 / 닉네임 / 권한지급 / 랭크변경 / 팀변경 / 보직/모집 / 인게임시험
-    await appendRowToSheet('소령!A:K', [
-      date,
-      displayName,
-      input.권한지급,
-      input.랭크변경,
-      input.팀변경,
-      input.보직모집,
-      input.인게임시험
-      // H~K는 시트 수식으로 자동 계산 (행정총건수/추가점수/행정점수/최종총점)
-    ]);
-  } else {
-    // 중령: 일자 / 닉네임 / 역할지급 / 인증 / 서버역할요청 / 감찰 / 인게임시험 / 코호스트 / 피드백
-    await appendRowToSheet('중령!A:M', [
-      date,
-      displayName,
-      input.역할지급,
-      input.인증,
-      input.서버역할,
-      input.감찰,
-      input.인게임시험,
-      input.코호스트,
-      input.피드백
-      // J~M은 시트 수식으로 자동 계산
-    ]);
-  }
-} catch (e) {
-  console.error('❌ 구글시트 저장 실패:', e);
-  replyText += `\n\n⚠️ 구글 시트 자동 기입에 실패했습니다. Railway Logs를 확인하세요.`;
-}
+    // ================== ✅ 구글 시트 저장 (증거사진은 저장하지 않음) ==================
+    try {
+      if (is소령) {
+        // ✅ 소령 컬럼 변경:
+        // A:일자 B:닉 C:권한 D:랭크 E:팀 F:총행정(수식) G:보직모집 H:인게임시험
+        await appendRowToSheet('소령!A:K', [
+          date,
+          displayName,
+          input.권한지급,
+          input.랭크변경,
+          input.팀변경,
+          `=INDEX(C:C,ROW())+INDEX(D:D,ROW())+INDEX(E:E,ROW())`, // ✅ F열 총 행정 건수
+          input.보직모집,    // ✅ G열(오른쪽 1칸)
+          input.인게임시험   // ✅ H열(오른쪽 1칸)
+          // I~K는 시트 수식으로 자동 계산
+        ]);
+      } else {
+        // ✅ 중령 컬럼 변경:
+        // A:일자 B:닉 C:역할 D:인증 E:서버역할 F:감찰 G:총행정(수식) H:인게임시험 I:코호스트 J:피드백
+        await appendRowToSheet('중령!A:M', [
+          date,
+          displayName,
+          input.역할지급,
+          input.인증,
+          input.서버역할,
+          input.감찰,
+          `=INDEX(C:C,ROW())+INDEX(D:D,ROW())+INDEX(E:E,ROW())+INDEX(F:F,ROW())`, // ✅ G열 총 행정 건수
+          input.인게임시험, // ✅ H열(오른쪽 1칸)
+          input.코호스트,   // ✅ I열(오른쪽 1칸)
+          input.피드백      // ✅ J열(오른쪽 1칸)
+          // K~M은 시트 수식으로 자동 계산
+        ]);
+      }
+    } catch (e) {
+      console.error('❌ 구글시트 저장 실패:', e);
+      replyText += `\n\n⚠️ 구글 시트 자동 기입에 실패했습니다. Railway Logs를 확인하세요.`;
+    }
 
     // 디스코드 응답(사진 첨부 유지)
     let embeds = [];
@@ -1252,16 +1250,31 @@ client.login(TOKEN);
 /*
 ================== 적용 사항 ==================
 
-[디스코드]
-- 행정보고 응답의 닉네임 줄: 자동 멘션(<@id>)으로 표시
+[구글 시트 - 컬럼 변경]
 
-[구글 시트]
-- 소령 시트 입력 순서:
-  일자, 닉네임(displayName), 권한지급, 랭크변경, 팀변경, 보직모집, 인게임시험, (사진은 뒤쪽 열)
+(1) 소령 탭
+- A: 일자
+- B: 닉네임(displayName)
+- C: 권한지급
+- D: 랭크변경
+- E: 팀변경
+- F: 총 행정 건수 (=C+D+E)
+- G: 보직모집 (기존 F에서 오른쪽 1칸)
+- H: 인게임시험 (기존 G에서 오른쪽 1칸)
+- I~K: 시트 수식 자동 계산(사용자 시트 구성에 따라)
 
-- 중령 시트 입력 순서:
-  일자, 닉네임(displayName), 역할지급, 인증, 서버역할, 감찰, 인게임시험, 코호스트, 피드백, (사진은 뒤쪽 열)
+(2) 중령 탭
+- A: 일자
+- B: 닉네임(displayName)
+- C: 역할지급
+- D: 인증
+- E: 서버역할
+- F: 감찰
+- G: 총 행정 건수 (=C+D+E+F)
+- H: 인게임시험 (기존 G에서 오른쪽 1칸)
+- I: 코호스트 (기존 H에서 오른쪽 1칸)
+- J: 피드백 (기존 I에서 오른쪽 1칸)
+- K~M: 시트 수식 자동 계산
 
 ※ 시트 탭 이름은 반드시 '소령', '중령' 이어야 합니다.
 */
-
