@@ -251,8 +251,14 @@ function calculate중령(input) {
     (input.서버역할 || 0) * 0.5
   );
 }
+// ✅ 중령 추가점수: 보직모집(소령과 동일 2점/건) 추가
 function getExtra중령(input) {
-  return (input.인게임시험 || 0) * 1 + (input.코호스트 || 0) * 1 + (input.피드백 || 0) * 2;
+  return (
+    (input.인게임시험 || 0) * 1 +
+    (input.코호스트 || 0) * 1 +
+    (input.피드백 || 0) * 2 +
+    (input.보직모집 || 0) * 2
+  );
 }
 
 function getTopPercentFromRank(rank, n) {
@@ -610,6 +616,7 @@ async function registerCommands() {
     );
   }
 
+  // ✅ 중령행정보고에 보직모집 추가
   const 중령Command = new SlashCommandBuilder()
     .setName('중령행정보고').setDescription('중령 행정 보고서 (중령 전용)')
     .addIntegerOption(o => o.setName('역할지급').setDescription('역할 지급 : n건').setRequired(true))
@@ -618,7 +625,8 @@ async function registerCommands() {
     .addIntegerOption(o => o.setName('감찰').setDescription('행정 감찰 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('인게임시험').setDescription('인게임 시험 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('코호스트').setDescription('인게임 코호스트 : n건').setRequired(true))
-    .addIntegerOption(o => o.setName('피드백').setDescription('피드백 제공 : n건').setRequired(true));
+    .addIntegerOption(o => o.setName('피드백').setDescription('피드백 제공 : n건').setRequired(true))
+    .addIntegerOption(o => o.setName('보직모집').setDescription('보직 모집 : n건').setRequired(true));
 
   for (let i = 1; i <= 10; i++) {
     중령Command.addAttachmentOption(o =>
@@ -855,7 +863,8 @@ client.on('interactionCreate', async interaction => {
         감찰: interaction.options.getInteger('감찰'),
         인게임시험: interaction.options.getInteger('인게임시험'),
         코호스트: interaction.options.getInteger('코호스트'),
-        피드백: interaction.options.getInteger('피드백')
+        피드백: interaction.options.getInteger('피드백'),
+        보직모집: interaction.options.getInteger('보직모집') // ✅ 추가
       };
 
       adminCount = calculate중령(input);
@@ -868,6 +877,7 @@ client.on('interactionCreate', async interaction => {
       replyText += `**인게임 시험**: ${input.인게임시험}건\n`;
       replyText += `**인게임 코호스트**: ${input.코호스트}건\n`;
       replyText += `**피드백 제공**: ${input.피드백}건\n`;
+      replyText += `**보직 모집**: ${input.보직모집}건\n`; // ✅ 추가
     }
 
     // 사진
@@ -896,7 +906,7 @@ client.on('interactionCreate', async interaction => {
     // ================== ✅ 구글 시트 저장 (증거사진은 저장하지 않음) ==================
     try {
       if (is소령) {
-        // ✅ 소령 컬럼 변경:
+        // ✅ 소령 컬럼:
         // A:일자 B:닉 C:권한 D:랭크 E:팀 F:총행정(수식) G:보직모집 H:인게임시험
         await appendRowToSheet('소령!A:K', [
           date,
@@ -905,14 +915,15 @@ client.on('interactionCreate', async interaction => {
           input.랭크변경,
           input.팀변경,
           `=INDEX(C:C,ROW())+INDEX(D:D,ROW())+INDEX(E:E,ROW())`, // ✅ F열 총 행정 건수
-          input.보직모집,    // ✅ G열(오른쪽 1칸)
-          input.인게임시험   // ✅ H열(오른쪽 1칸)
+          input.보직모집,    // ✅ G열
+          input.인게임시험   // ✅ H열
           // I~K는 시트 수식으로 자동 계산
         ]);
       } else {
-        // ✅ 중령 컬럼 변경:
-        // A:일자 B:닉 C:역할 D:인증 E:서버역할 F:감찰 G:총행정(수식) H:인게임시험 I:코호스트 J:피드백
-        await appendRowToSheet('중령!A:M', [
+        // ✅ 중령 컬럼:
+        // A:일자 B:닉 C:역할 D:인증 E:서버역할 F:감찰 G:총행정(수식)
+        // H:인게임시험 I:코호스트 J:피드백 K:보직모집
+        await appendRowToSheet('중령!A:K', [
           date,
           displayName,
           input.역할지급,
@@ -920,10 +931,10 @@ client.on('interactionCreate', async interaction => {
           input.서버역할,
           input.감찰,
           `=INDEX(C:C,ROW())+INDEX(D:D,ROW())+INDEX(E:E,ROW())+INDEX(F:F,ROW())`, // ✅ G열 총 행정 건수
-          input.인게임시험, // ✅ H열(오른쪽 1칸)
-          input.코호스트,   // ✅ I열(오른쪽 1칸)
-          input.피드백      // ✅ J열(오른쪽 1칸)
-          // K~M은 시트 수식으로 자동 계산
+          input.인게임시험, // ✅ H
+          input.코호스트,   // ✅ I
+          input.피드백,     // ✅ J
+          input.보직모집    // ✅ K (요청사항)
         ]);
       }
     } catch (e) {
@@ -1250,7 +1261,12 @@ client.login(TOKEN);
 /*
 ================== 적용 사항 ==================
 
-[구글 시트 - 컬럼 변경]
+[중령행정보고 보직모집 추가]
+- /중령행정보고 옵션에 보직모집 추가(필수)
+- 중령 추가점수에 보직모집(2점/건) 포함
+- 구글시트 중령 탭 K열에 보직모집 건수 저장
+
+[구글 시트 - 컬럼]
 
 (1) 소령 탭
 - A: 일자
@@ -1259,8 +1275,8 @@ client.login(TOKEN);
 - D: 랭크변경
 - E: 팀변경
 - F: 총 행정 건수 (=C+D+E)
-- G: 보직모집 (기존 F에서 오른쪽 1칸)
-- H: 인게임시험 (기존 G에서 오른쪽 1칸)
+- G: 보직모집
+- H: 인게임시험
 - I~K: 시트 수식 자동 계산(사용자 시트 구성에 따라)
 
 (2) 중령 탭
@@ -1271,10 +1287,10 @@ client.login(TOKEN);
 - E: 서버역할
 - F: 감찰
 - G: 총 행정 건수 (=C+D+E+F)
-- H: 인게임시험 (기존 G에서 오른쪽 1칸)
-- I: 코호스트 (기존 H에서 오른쪽 1칸)
-- J: 피드백 (기존 I에서 오른쪽 1칸)
-- K~M: 시트 수식 자동 계산
+- H: 인게임시험
+- I: 코호스트
+- J: 피드백
+- K: 보직모집
 
 ※ 시트 탭 이름은 반드시 '소령', '중령' 이어야 합니다.
 */
