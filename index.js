@@ -56,8 +56,8 @@ async function appendRowToSheet(rangeA1, values) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: rangeA1,
-    valueInputOption: 'USER_ENTERED',
+    range: rangeA1,                     // 예: '소령!A:Z'
+    valueInputOption: 'USER_ENTERED',   // ✅ 수식 가능
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [values] }
   });
@@ -256,6 +256,8 @@ function calculate중령(input) {
     (input.서버역할 || 0) * 0.5
   );
 }
+
+// ✅ 중령 추가점수: 스카웃/모집(보직모집) 2점/건 포함
 function getExtra중령(input) {
   return (
     (input.인게임시험 || 0) * 1 +
@@ -611,14 +613,8 @@ async function registerCommands() {
     .addIntegerOption(o => o.setName('권한지급').setDescription('권한 지급 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('랭크변경').setDescription('랭크 변경 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('팀변경').setDescription('팀 변경 : n건').setRequired(true))
-    // ✅ 버튼에 "스카웃/모집"으로 보이게: nameLocalizations 사용
-    .addIntegerOption(o =>
-      o
-        .setName('scout') // 내부 키
-        .setNameLocalizations({ ko: '스카웃/모집' }) // 화면 표시 라벨
-        .setDescription('스카웃/모집 : n건')
-        .setRequired(true)
-    )
+    // ✅ 표시 문구: 스카웃/모집
+    .addIntegerOption(o => o.setName('보직모집').setDescription('스카웃/모집 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('인게임시험').setDescription('인게임 시험 : n건').setRequired(true));
 
   for (let i = 1; i <= 10; i++) {
@@ -636,14 +632,8 @@ async function registerCommands() {
     .addIntegerOption(o => o.setName('인게임시험').setDescription('인게임 시험 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('코호스트').setDescription('인게임 코호스트 : n건').setRequired(true))
     .addIntegerOption(o => o.setName('피드백').setDescription('피드백 제공 : n건').setRequired(true))
-    // ✅ 버튼에 "스카웃/모집"으로 보이게: nameLocalizations 사용
-    .addIntegerOption(o =>
-      o
-        .setName('scout') // 내부 키(소령과 동일)
-        .setNameLocalizations({ ko: '스카웃/모집' }) // 화면 표시 라벨
-        .setDescription('스카웃/모집 : n건')
-        .setRequired(true)
-    );
+    // ✅ 표시 문구: 스카웃/모집
+    .addIntegerOption(o => o.setName('보직모집').setDescription('스카웃/모집 : n건').setRequired(true));
 
   for (let i = 1; i <= 10; i++) {
     중령Command.addAttachmentOption(o =>
@@ -719,6 +709,8 @@ client.on('interactionCreate', async interaction => {
   // 버튼 처리
   if (interaction.isButton()) {
     const customId = interaction.customId || '';
+
+    // ✅ “모든 권한” 유저는 버튼도 전부 허용
     const isOverrideUser = ADMIN_OVERRIDE_USER_IDS.includes(interaction.user.id);
 
     if (customId.startsWith('pg|')) {
@@ -838,6 +830,7 @@ client.on('interactionCreate', async interaction => {
 
   const hasRole = (roleId) => interaction.member?.roles?.cache?.has(roleId);
 
+  // ✅ “모든 권한” 유저는 감독관/소령/중령 역할 체크를 전부 통과
   const isSupervisor = () =>
     isOverrideUser ||
     interaction.member?.roles?.cache?.some(r => SUPERVISOR_ROLE_IDS.includes(r.id));
@@ -854,7 +847,10 @@ client.on('interactionCreate', async interaction => {
     const is소령 = cmd === '소령행정보고';
     const date = getReportDate();
 
+    // ✅ 디스코드 표시: 자동 멘션
     const mention = `<@${interaction.user.id}>`;
+
+    // ✅ 시트/로컬 저장: 실제 닉네임(displayName)
     const displayName = interaction.member?.displayName || interaction.user.username;
 
     let replyText =
@@ -870,8 +866,7 @@ client.on('interactionCreate', async interaction => {
         권한지급: interaction.options.getInteger('권한지급'),
         랭크변경: interaction.options.getInteger('랭크변경'),
         팀변경: interaction.options.getInteger('팀변경'),
-        // ✅ scout 키로 받음(화면 표시는 스카웃/모집)
-        보직모집: interaction.options.getInteger('scout'),
+        보직모집: interaction.options.getInteger('보직모집'),
         인게임시험: interaction.options.getInteger('인게임시험')
       };
 
@@ -892,8 +887,7 @@ client.on('interactionCreate', async interaction => {
         인게임시험: interaction.options.getInteger('인게임시험'),
         코호스트: interaction.options.getInteger('코호스트'),
         피드백: interaction.options.getInteger('피드백'),
-        // ✅ scout 키로 받음(화면 표시는 스카웃/모집)
-        보직모집: interaction.options.getInteger('scout')
+        보직모집: interaction.options.getInteger('보직모집')
       };
 
       adminCount = calculate중령(input);
@@ -917,7 +911,7 @@ client.on('interactionCreate', async interaction => {
     }
     if (photoAttachments.length > 0) replyText += `\n📸 증거 사진 ${photoAttachments.length}장 첨부됨`;
 
-    // 로컬 저장
+    // 로컬 저장(닉네임은 displayName으로 유지)
     const group = is소령 ? data.소령 : data.중령;
     if (!group.users[interaction.user.id]) group.users[interaction.user.id] = { nick: displayName, totalAdmin: 0, totalExtra: 0, daily: {} };
     const u = group.users[interaction.user.id];
@@ -946,7 +940,6 @@ client.on('interactionCreate', async interaction => {
           input.인게임시험
         ]);
       } else {
-        // ✅ 중령 K열: 스카웃/모집(보직모집)
         await appendRowToSheet('중령!A:K', [
           date,
           displayName,
@@ -1286,14 +1279,41 @@ if (!TOKEN) {
 client.login(TOKEN);
 
 /*
-================== 변경 요약 ==================
+================== 적용 사항 ==================
 
-1) /소령행정보고, /중령행정보고 모두
-- "보직모집" 옵션 버튼 표시를 "스카웃/모집"으로 변경
-- 방법: option.setName('scout') + setNameLocalizations({ ko: '스카웃/모집' })
-- 실제 값 읽기: interaction.options.getInteger('scout')
+[모든 명령어 권한]
+- ADMIN_OVERRIDE_USER_IDS에 등록된 유저(예: 1369378060557877480)는
+  - 소령/중령 역할 없이도 /소령행정보고, /중령행정보고 사용 가능
+  - 감독관 역할 없이도 감독관 전용 명령/버튼(pg|, dg|) 포함 전부 사용 가능
 
-2) 내부 데이터/시트 저장은 그대로 input.보직모집 사용
-- 소령 시트: G열에 스카웃/모집(보직모집) 값 저장
-- 중령 시트: K열에 스카웃/모집(보직모집) 값 저장
+[표시 문구 변경]
+- /소령행정보고, /중령행정보고 옵션 설명: "스카웃/모집"
+- 보고 완료 메시지 출력: "스카웃/모집"
+(옵션 key는 그대로 '보직모집' 사용)
+
+[구글 시트 - 컬럼]
+(1) 소령 탭
+- A: 일자
+- B: 닉네임(displayName)
+- C: 권한지급
+- D: 랭크변경
+- E: 팀변경
+- F: 총 행정 건수 (=C+D+E)
+- G: 스카웃/모집(보직모집)
+- H: 인게임시험
+
+(2) 중령 탭
+- A: 일자
+- B: 닉네임(displayName)
+- C: 역할지급
+- D: 인증
+- E: 서버역할
+- F: 감찰
+- G: 총 행정 건수 (=C+D+E+F)
+- H: 인게임시험
+- I: 코호스트
+- J: 피드백
+- K: 스카웃/모집(보직모집)
+
+※ 시트 탭 이름은 반드시 '소령', '중령' 이어야 합니다.
 */
