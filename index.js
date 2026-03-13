@@ -58,11 +58,6 @@ async function appendRowToSheet(rangeA1, values) {
   });
 }
 
-function toImageFormula(url) {
-  return `=IMAGE("${url}")`;
-  // return `=HYPERLINK("${url}","사진")`;
-}
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -290,10 +285,8 @@ async function getEligibleMemberIdsByRank(guild, rankName) {
   return ids;
 }
 
-// ================== 점수 계산 핵심 ==================
-// ✅ 최소업무 미달이어도 "추가점수는 그대로 적용"
-// - 미달자: adminPoints = 0, extraPoints = min(30, extraRaw), total = extraPoints
-// - 충족자: adminPoints + extraPoints
+// ================== 점수 계산 ==================
+// 최소업무 미달이어도 추가점수는 그대로 반영
 function buildDayScoresForMembers(rankName, dateStr, memberIds) {
   const is소령 = rankName === '소령';
   const minRequired = is소령 ? 3 : 4;
@@ -369,13 +362,11 @@ function getDayTotalsOnly(rankName, dateStr) {
   const n = eligible.length;
   const totalsMap = new Map();
 
-  // ✅ 일단 전체 인원에게 "추가점수만 반영된 점수"를 기본 세팅
   for (const r of rows) {
     const extraPoints = Math.min(30, r.extraRaw);
     totalsMap.set(r.userId, extraPoints);
   }
 
-  // ✅ 최소업무 충족자만 행정점수 추가
   for (let i = 0; i < n; i++) {
     const cur = eligible[i];
 
@@ -737,11 +728,7 @@ client.on('interactionCreate', async interaction => {
 
           const totals = {};
           for (const uid of memberIds) {
-            totals[uid] = {
-              userId: uid,
-              nick: group.users?.[uid]?.nick || `<@${uid}>`,
-              weeklyTotal: 0
-            };
+            totals[uid] = { userId: uid, nick: group.users?.[uid]?.nick || `<@${uid}>`, weeklyTotal: 0 };
           }
 
           for (const d of weekDates) {
@@ -825,8 +812,12 @@ client.on('interactionCreate', async interaction => {
   const isLtCol = () => hasRole(LTCOL_ROLE_ID);
 
   // 역할 제한
-  if (cmd === '소령행정보고' && !isMajor()) return interaction.reply({ content: '❌ 이 명령어는 **소령 역할**만 사용할 수 있습니다.', ephemeral: true });
-  if (cmd === '중령행정보고' && !isLtCol()) return interaction.reply({ content: '❌ 이 명령어는 **중령 역할**만 사용할 수 있습니다.', ephemeral: true });
+  if (cmd === '소령행정보고' && !isMajor()) {
+    return interaction.reply({ content: '❌ 이 명령어는 **소령 역할**만 사용할 수 있습니다.', ephemeral: true });
+  }
+  if (cmd === '중령행정보고' && !isLtCol()) {
+    return interaction.reply({ content: '❌ 이 명령어는 **중령 역할**만 사용할 수 있습니다.', ephemeral: true });
+  }
 
   // ================== 행정보고 ==================
   if (cmd === '소령행정보고' || cmd === '중령행정보고') {
@@ -841,7 +832,8 @@ client.on('interactionCreate', async interaction => {
       `**닉네임**: ${mention}\n` +
       `**일자**: ${date}\n\n`;
 
-    let adminCount = 0, extra = 0;
+    let adminCount = 0;
+    let extra = 0;
     let input = null;
 
     if (is소령) {
@@ -908,7 +900,11 @@ client.on('interactionCreate', async interaction => {
     dayTotalsCache.delete(`${is소령 ? '소령' : '중령'}|${date}`);
     saveData();
 
-    // ================== 구글 시트 저장 (증거사진은 저장하지 않음) ==================
+    // ================== 구글 시트 저장 ==================
+    // 소령 구조:
+    // A 일자 / B 닉네임 / C 권한지급 / D 랭크변경 / E 팀변경 / F 행정총건수(수식) / G 보직모집 / H 인게임시험
+    // 중령 구조:
+    // A 일자 / B 닉네임 / C 역할지급 / D 인증 / E 서버역할 / F 감찰 / G 행정총건수(수식) / H 인게임시험 / I 코호스트 / J 피드백
     try {
       if (is소령) {
         await appendRowToSheet('소령!A:K', [
@@ -917,6 +913,7 @@ client.on('interactionCreate', async interaction => {
           input.권한지급,
           input.랭크변경,
           input.팀변경,
+          '', // F열: 행정총건수(시트 수식)
           input.보직모집,
           input.인게임시험
         ]);
@@ -928,6 +925,7 @@ client.on('interactionCreate', async interaction => {
           input.인증,
           input.서버역할,
           input.감찰,
+          '', // G열: 행정총건수(시트 수식)
           input.인게임시험,
           input.코호스트,
           input.피드백
@@ -1004,11 +1002,7 @@ client.on('interactionCreate', async interaction => {
 
     const totals = {};
     for (const uid of memberIds) {
-      totals[uid] = {
-        userId: uid,
-        nick: group.users?.[uid]?.nick || `<@${uid}>`,
-        weeklyTotal: 0
-      };
+      totals[uid] = { userId: uid, nick: group.users?.[uid]?.nick || `<@${uid}>`, weeklyTotal: 0 };
     }
 
     for (const d of weekDates) {
@@ -1170,7 +1164,9 @@ client.on('interactionCreate', async interaction => {
     const targetUser = interaction.options.getUser('대상');
     const isAll = interaction.options.getBoolean('전체') === true;
 
-    if (!isAll && !targetUser) return interaction.reply({ content: 'ℹ️ 대상 또는 전체(true)를 선택하세요.', ephemeral: true });
+    if (!isAll && !targetUser) {
+      return interaction.reply({ content: 'ℹ️ 대상 또는 전체(true)를 선택하세요.', ephemeral: true });
+    }
 
     let cleared = 0;
 
@@ -1193,7 +1189,9 @@ client.on('interactionCreate', async interaction => {
 
     const uid = targetUser.id;
     const u = group.users?.[uid];
-    if (!u?.daily?.[date]) return interaction.reply({ content: `ℹ️ ${targetUser} 님은 오늘(${date}) 기록이 없습니다.`, ephemeral: true });
+    if (!u?.daily?.[date]) {
+      return interaction.reply({ content: `ℹ️ ${targetUser} 님은 오늘(${date}) 기록이 없습니다.`, ephemeral: true });
+    }
 
     delete u.daily[date];
     recomputeTotals(group);
@@ -1269,21 +1267,14 @@ client.login(TOKEN);
 
 2) 최소업무 미달 처리 변경
 - 소령 3 미만 / 중령 4 미만이어도
-  "행정점수는 0점" 처리
-  "추가점수는 그대로 반영"
+  행정점수는 0점
+  추가점수는 그대로 반영
 
-3) 반영 범위
-- 오늘점수
-- 어제점수
-- 주간점수
-- 지난주점수
-- 강등대상
-- 자동 스냅샷
-- 내부 일별/주간 합산
+3) 구글 시트 열 맞춤
+- 소령:
+  A 일자 / B 닉네임 / C 권한지급 / D 랭크변경 / E 팀변경 / F 행정총건수(수식) / G 보직모집 / H 인게임시험
+- 중령:
+  A 일자 / B 닉네임 / C 역할지급 / D 인증 / E 서버역할 / F 감찰 / G 행정총건수(수식) / H 인게임시험 / I 코호스트 / J 피드백
 
-4) 구글 시트
-- 기존처럼 증거사진은 저장하지 않음
-- 시트 계산식은 따로 유지 가능
-
-※ 시트 탭 이름은 반드시 '소령', '중령' 이어야 합니다.
+4) 증거사진은 시트에 저장하지 않음
 */
