@@ -75,29 +75,29 @@ const client = new Client({
 
 // ================== 역할 ID ==================
 const SUPERVISOR_ROLE_IDS = [
-  '1018195904261529691', // 감독관
-  '1473688580613341419'  // 인사행정부단장
+  '1480915647922966658', // 감독관
+  '1480918241831424040'  // 인사행정부단장
 ];
 
 const MAJOR_ROLE_ID = '1472582859339596091';   // 소령
 const LTCOL_ROLE_ID = '1018447060627894322';   // 중령
 
 const EXCLUDED_ROLE_IDS = [
-  '1018195904261529691', // 감독관
-  '1463433369869090962', // 사령본부
-  '1473688580613341419'  // 인사행정부단장
+  '1480915647922966658', // 감독관
+  '1480916945963585566', // 사령본부
+  '1480918241831424040'  // 인사행정부단장
 ];
 
 const DEMOTION_EXCLUDED_ROLE_IDS = [
   '1477394729808298167', // 법무교육단
-  '1018195904261529691', // 감독관
-  '1463433369869090962', // 사령본부
-  '1473688580613341419'  // 인사행정부단장
+  '1480915647922966658', // 감독관
+  '1480916945963585566', // 사령본부
+  '1480918241831424040'  // 인사행정부단장
 ];
 
 const DEMOTION_ALLOWED_ROLE_IDS = [
-  '1018195904261529691', // 감독관
-  '1473688580613341419'  // 인사행정부단장
+  '1480915647922966658', // 감독관
+  '1480918241831424040'  // 인사행정부단장
 ];
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -339,8 +339,8 @@ function buildDayScoresForMembers(rankName, dateStr, memberIds) {
   for (const r of rows) {
     if (!r.meetsMin) {
       r.adminPoints = 0;
-      r.extraPoints = 0;
-      r.total = 0;
+      r.extraPoints = Math.min(30, r.extraRaw);
+      r.total = r.extraPoints;
       r.percentile = null;
     }
   }
@@ -385,6 +385,13 @@ function getDayTotalsOnly(rankName, dateStr) {
     const total = Math.min(100, adminPoints + extraPoints);
 
     totalsMap.set(cur.userId, total);
+  }
+
+  for (const r of rows) {
+    if (!r.meetsMin) {
+      const extraPoints = Math.min(30, r.extraRaw);
+      totalsMap.set(r.userId, extraPoints);
+    }
   }
 
   dayTotalsCache.set(cacheKey, totalsMap);
@@ -432,7 +439,7 @@ function createDailyEmbedPaged(rankName, dateStr, fullList, page, pageSize, titl
   return new EmbedBuilder()
     .setTitle(`${rankName} ${titlePrefix} (${dateStr}) (최대 100점)`)
     .setDescription(lines)
-    .setFooter({ text: `페이지 ${p + 1}/${totalPages} · 최소업무 미달자는 0점 + 퍼센트 산정에서 제외` });
+    .setFooter({ text: `페이지 ${p + 1}/${totalPages} · 최소업무 미달자는 추가점수만 적용 + 퍼센트 산정에서 제외` });
 }
 
 function createWeeklyEmbedPaged(rankName, weekStart, weekEnd, fullList, page, pageSize, titlePrefix) {
