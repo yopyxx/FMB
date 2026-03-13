@@ -237,7 +237,7 @@ function clearPrev7ReportDaysBeforeThisWeek(group) {
 
 // ================== 계산 함수 ==================
 function calculate소령(input) {
-  return (input.권한지급 || 0) * 1 + (input.랭크변경 || 0) * 1 + (input.팀변경 || 0) * 1;
+  return (input.권한지급 || 0) * 0.5 + (input.랭크변경 || 0) * 1 + (input.팀변경 || 0) * 1;
 }
 function getExtra소령(input) {
   return (input.인게임시험 || 0) * 1 + (input.보직모집 || 0) * 2;
@@ -1289,3 +1289,4 @@ client.login(TOKEN);
 
 5) 그 외 나머지 로직 유지
 */
+
